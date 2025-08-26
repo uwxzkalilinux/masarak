@@ -20,23 +20,31 @@ app.get('/api/trucks/:unique', async (req, res) => {
   const encodedAuth = btoa(auth);
 
   try {
-    const response = await axios.get(apiUrl, {
-      headers: {
-        Authorization: `Basic ${encodedAuth}`,
-      },
-    });
+    console.log(`Request to: ${apiUrl}`);
+    let response;
+    try {
+      response = await axios.get(apiUrl, {
+        headers: {
+          Authorization: `Basic ${encodedAuth}`,
+        },
+      });
 
-    let data = response.data;
+      console.log(`Response status: ${response.status}`);
+      console.log(`Response data: ${JSON.stringify(response.data)}`);
 
-    if (data.sonar_image_url) {
-      delete data.sonar_image_url;
+      let data = response.data;
+
+      if (data.sonar_image_url) {
+        delete data.sonar_image_url;
+      }
+
+      res.json(data);
+    } catch (error) {
+      console.error('API Error:', error);
+      console.error('Error details:', error.message);
+    console.error('Full error object:', error);
+    res.status(500).json({ error: 'حدث خطأ بالاتصال', details: error.message });
     }
-
-    res.json(data);
-  } catch (error) {
-    console.error('API Error:', error);
-    res.status(500).json({ error: 'حدث خطأ بالاتصال' });
-  }
 });
 
 app.listen(port, () => {

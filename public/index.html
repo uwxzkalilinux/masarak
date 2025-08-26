@@ -124,7 +124,7 @@
             } catch (error) {
                 spinner.classList.add('hidden');
                 console.error('There was a problem fetching the data:', error);
-                alert('حدث خطأ أثناء جلب البيانات');
+                alert(`حدث خطأ أثناء جلب البيانات: ${error.message}`);
             }
         }
 
