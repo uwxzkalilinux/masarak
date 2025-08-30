@@ -1,143 +1,83 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>استعلام الشاحنات</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-
-    <style>
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 2s linear infinite;
-            margin: 0 auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>نظام الشاحنات</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; background: #f9f9f9; }
+    .search-box { margin: 20px; }
+    input { padding: 10px; width: 250px; }
+    button { padding: 10px 20px; margin: 10px; cursor: pointer; }
+    .radar { margin: 20px auto; width: 120px; height: 120px; border-radius: 50%; border: 6px solid #2196F3; animation: none; }
+    .loading { animation: spin 1s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    .card { background: white; margin: 15px auto; padding: 15px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); width: 80%; }
+  </style>
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto py-8">
+<body>
+  <h2>🔍 البحث عن الشاحنات</h2>
+  <div class="search-box">
+    <input type="text" id="unique" placeholder="أدخل الرقم الموحد">
+    <br>
+    <button onclick="search()">بحث</button>
+  </div>
 
-        <div class="flex justify-between items-center mb-4">
-            <h1 class="text-2xl font-bold text-gray-800">استعلام الشاحنات الداخلة للسونار</h1>
-            <button onclick="logout()" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
-                تسجيل خروج
-            </button>
-        </div>
+  <!-- الرادار تحت كلمة البحث -->
+  <div id="radar" class="radar"></div>
 
-        <div class="mb-4">
-            <label for="uniqueId" class="block text-gray-700 text-sm font-bold mb-2">الرقم الموحد:</label>
-            <div class="flex items-center">
-                <input type="text" id="uniqueId" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" placeholder="أدخل الرقم الموحد">
-                <button onclick="getData()" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ml-2">
-                    جلب المعلومات
-                </button>
-            </div>
-        </div>
+  <div id="results"></div>
 
-        <div id="spinner" class="spinner hidden"></div>
+  <script>
+    if (localStorage.getItem("loggedIn") !== "true") {
+      window.location.href = "login.html";
+    }
 
-        <div id="resultsSummary" class="mb-4 text-gray-600"></div>
+    async function search() {
+      const unique = document.getElementById("unique").value;
+      const radar = document.getElementById("radar");
+      const results = document.getElementById("results");
+      results.innerHTML = "";
 
-        <div class="flex">
-            <div class="w-1/2 pr-2">
-                <h2 class="text-xl font-bold mb-2 text-green-600">✅ بيانات سونار متوفرة</h2>
-                <div id="withSonar" class="space-y-2"></div>
-            </div>
-            <div class="w-1/2 pl-2">
-                <h2 class="text-xl font-bold mb-2 text-red-600">🚫 بيانات سونار غير متوفرة</h2>
-                <div id="withoutSonar" class="space-y-2"></div>
-            </div>
-        </div>
+      if (!unique) {
+        alert("يرجى إدخال الرقم الموحد");
+        return;
+      }
 
-    </div>
+      radar.classList.add("loading");
 
-    <script>
-        // Redirect to login if not logged in
-        if (localStorage.getItem('isLoggedIn') !== 'true') {
-            window.location.href = 'login.html';
+      try {
+        const res = await fetch(`/api/proxy?unique=${encodeURIComponent(unique)}`);
+        const data = await res.json();
+        radar.classList.remove("loading");
+
+        if (data.error) {
+          results.innerHTML = `<p style="color:red;">${data.error}</p>`;
+          return;
         }
 
-        function logout() {
-            localStorage.removeItem('isLoggedIn');
-            window.location.href = 'login.html';
+        if (!data.trips || data.trips.length === 0) {
+          results.innerHTML = "<p>🚛 لا توجد بيانات للشاحنات.</p>";
+          return;
         }
 
-        async function getData() {
-            const uniqueId = document.getElementById('uniqueId').value;
-            const withSonarDiv = document.getElementById('withSonar');
-            const withoutSonarDiv = document.getElementById('withoutSonar');
-            const resultsSummaryDiv = document.getElementById('resultsSummary');
-            const spinner = document.getElementById('spinner');
+        data.trips.forEach(trip => {
+          const card = document.createElement("div");
+          card.className = "card";
+          card.innerHTML = `
+            <p><b>🚛 رقم السيارة:</b> ${trip.truck_number || "غير متوفر"}</p>
+            <p><b>👨‍✈️ اسم السائق:</b> ${trip.driver_name || "غير متوفر"}</p>
+            <p><b>📦 رقم الحاوية:</b> ${trip.container_number_export || "غير متوفر"}</p>
+            <p><b>📄 رقم المنافيست:</b> ${trip.manifest || "غير متوفر"}</p>
+          `;
+          results.appendChild(card);
+        });
 
-            withSonarDiv.innerHTML = '';
-            withoutSonarDiv.innerHTML = '';
-            resultsSummaryDiv.innerHTML = '';
-
-            if (!uniqueId) {
-                alert('يرجى إدخال الرقم الموحد');
-                return;
-            }
-
-             spinner.classList.remove('hidden');
-
-            try {
-                const response = await fetch(`http://localhost:3001/api/trucks/${uniqueId}`); // Adjust the URL if needed
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                const data = await response.json();
-
-                spinner.classList.add('hidden');
-
-                let withSonarCount = 0;
-                let withoutSonarCount = 0;
-
-                if (data) { // Assuming the API returns a single object
-                  const truckCard = createTruckCard(data);
-                    if (data.hasOwnProperty('date')) { //checking the existance of sonar data by checking date
-                        withSonarDiv.innerHTML += truckCard;
-                        withSonarCount++;
-                    } else {
-                        withoutSonarDiv.innerHTML += truckCard;
-                        withoutSonarCount++;
-                    }
-                }
-
-                const totalCount = withSonarCount + withoutSonarCount;
-                resultsSummaryDiv.innerHTML = `
-                    <p>إجمالي النتائج: ${totalCount}</p>
-                    <p>عدد الشاحنات ببيانات سونار: ${withSonarCount}</p>
-                    <p>عدد الشاحنات بدون بيانات سونار: ${withoutSonarCount}</p>
-                `;
-
-            } catch (error) {
-                spinner.classList.add('hidden');
-                console.error('There was a problem fetching the data:', error);
-                alert(`حدث خطأ أثناء جلب البيانات: ${error.message}`);
-            }
-        }
-
-        function createTruckCard(truck) {
-            return `
-                <div class="bg-white rounded shadow-md p-4 animate__animated animate__fadeIn">
-                    <p><i class="fas fa-truck"></i> رقم السيارة: ${truck.truck_number || 'غير متوفر'}</p>
-                    <p><i class="fas fa-user"></i> اسم المندوب/السائق: ${truck.driver_name || 'غير متوفر'}</p>
-                    <p><i class="fas fa-box"></i> رقم الحاوية: ${truck.container_number || 'غير متوفر'}</p>
-                    <p><i class="fas fa-calendar-alt"></i> تاريخ دخول السونار: ${truck.date || 'غير متوفر'}</p>
-                </div>
-            `;
-        }
-    </script>
+      } catch (error) {
+        radar.classList.remove("loading");
+        results.innerHTML = `<p style="color:red;">⚠️ حدث خطأ أثناء جلب البيانات.</p>`;
+      }
+    }
+  </script>
 </body>
 </html>
