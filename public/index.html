@@ -1,81 +1,161 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>نظام الشاحنات</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trip Information Search</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600&display=swap" rel="stylesheet" />
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; background: #f9f9f9; }
-    .search-box { margin: 20px; }
-    input { padding: 10px; width: 250px; }
-    button { padding: 10px 20px; margin: 10px; cursor: pointer; }
-    .radar { margin: 20px auto; width: 120px; height: 120px; border-radius: 50%; border: 6px solid #2196F3; animation: none; }
-    .loading { animation: spin 1s linear infinite; }
-    @keyframes spin { 100% { transform: rotate(360deg); } }
-    .card { background: white; margin: 15px auto; padding: 15px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); width: 80%; }
+    body {
+      font-family: 'Cairo', sans-serif;
+      background: url('https://www.transparenttextures.com/patterns/stardust.png'), radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+      background-size: cover;
+      overflow-x: hidden;
+    }
+    /* galaxy stars */
+    .stars {
+      width: 100%;
+      height: 100%;
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: -1;
+      background: transparent url('https://www.transparenttextures.com/patterns/stardust.png') repeat;
+      animation: moveStars 200s linear infinite;
+    }
+    @keyframes moveStars {
+      from { background-position: 0 0; }
+      to { background-position: 10000px 10000px; }
+    }
+    /* Radar */
+    .radar {
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      border: 4px solid rgba(0, 255, 0, 0.5);
+      position: relative;
+      margin: 20px auto;
+      overflow: hidden;
+    }
+    .radar-sweep {
+      width: 100%;
+      height: 100%;
+      background: conic-gradient(rgba(0,255,0,0.6) 0deg, rgba(0,255,0,0.1) 60deg, transparent 360deg);
+      border-radius: 50%;
+      animation: radarRotate 3s linear infinite;
+      transform-origin: center;
+      display: none; /* start hidden */
+    }
+    @keyframes radarRotate {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
-<body>
-  <h2>🔍 البحث عن الشاحنات</h2>
-  <div class="search-box">
-    <input type="text" id="unique" placeholder="أدخل الرقم الموحد">
-    <br>
-    <button onclick="search()">بحث</button>
+<body class="min-h-screen flex flex-col items-center justify-start py-10 px-4 text-white">
+  <div class="stars"></div>
+  
+  <div class="w-full max-w-4xl mx-auto text-center mb-6">
+    <h1 class="text-4xl font-extrabold tracking-tight drop-shadow-md">🚚 Trip Information Search</h1>
+    <button onclick="logout()" class="mt-4 bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-xl shadow-lg transition transform hover:scale-105">Logout</button>
   </div>
 
-  <!-- الرادار تحت كلمة البحث -->
-  <div id="radar" class="radar"></div>
+  <div class="w-full bg-black bg-opacity-50 p-8 rounded-3xl shadow-2xl backdrop-blur-md">
+    <input id="uniqueId" class="w-full border-2 border-green-400 rounded-xl px-5 py-3 text-lg text-black focus:outline-none focus:ring-4 focus:ring-green-400 mb-4" placeholder="🔢 Enter unique number" />
+    <button onclick="fetchData()" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-2xl text-lg font-semibold shadow-lg transition transform hover:scale-105"> 🚀 Search </button>
+    
+    <!-- Radar -->
+    <div class="radar">
+      <div class="radar-sweep" id="radarSweep"></div>
+    </div>
+  </div>
 
-  <div id="results"></div>
+  <div id="stats" class="text-center mt-6 text-lg font-semibold animate__animated animate__fadeIn"></div>
+  <div class="grid md:grid-cols-2 gap-6 mt-10 w-full">
+    <div class="bg-white text-black rounded-3xl shadow-xl p-6" id="withoutSonarColumn">
+      <h2 class="text-2xl font-extrabold text-red-600 mb-4">🚫 Without Sonar</h2>
+    </div>
+    <div class="bg-white text-black rounded-3xl shadow-xl p-6" id="withSonarColumn">
+      <h2 class="text-2xl font-extrabold text-green-600 mb-4">✅ With Sonar</h2>
+    </div>
+  </div>
 
   <script>
-    if (localStorage.getItem("loggedIn") !== "true") {
-      window.location.href = "login.html";
+    // Check login
+    document.addEventListener('DOMContentLoaded', () => {
+      if (localStorage.getItem('isLoggedIn') !== 'true') {
+        window.location.href = 'login.html';
+      }
+    });
+    function logout() {
+      localStorage.removeItem('isLoggedIn');
+      window.location.href = 'login.html';
     }
 
-    async function search() {
-      const unique = document.getElementById("unique").value;
-      const radar = document.getElementById("radar");
-      const results = document.getElementById("results");
-      results.innerHTML = "";
+    function formatDate(dateStr) {
+      if (!dateStr) return "N/A";
+      const d = new Date(dateStr);
+      return d.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
+    }
 
-      if (!unique) {
-        alert("يرجى إدخال الرقم الموحد");
+    async function fetchData() {
+      const uniqueId = document.getElementById("uniqueId").value.trim();
+      const stats = document.getElementById("stats");
+      const withSonarCol = document.getElementById("withSonarColumn");
+      const withoutSonarCol = document.getElementById("withoutSonarColumn");
+      const radarSweep = document.getElementById("radarSweep");
+
+      withSonarCol.innerHTML = '<h2 class="text-2xl font-extrabold text-green-600 mb-4">✅ With Sonar</h2>';
+      withoutSonarCol.innerHTML = '<h2 class="text-2xl font-extrabold text-red-600 mb-4">🚫 Without Sonar</h2>';
+      stats.textContent = "";
+
+      if (!uniqueId) {
+        stats.textContent = "Please enter the unique number.";
         return;
       }
 
-      radar.classList.add("loading");
+      // Start radar animation
+      radarSweep.style.display = "block";
 
       try {
-        const res = await fetch(`/api/proxy?unique=${encodeURIComponent(unique)}`);
-        const data = await res.json();
-        radar.classList.remove("loading");
-
-        if (data.error) {
-          results.innerHTML = `<p style="color:red;">${data.error}</p>`;
+        const response = await fetch(`/api/proxy?unique=${encodeURIComponent(uniqueId)}`);
+        if (!response.ok) throw new Error(`Failed to fetch data: ${response.status}`);
+        const data = await response.json();
+        const trips = data.trips || [];
+        if (trips.length === 0) {
+          stats.textContent = "🚫 No data found for this unique number.";
           return;
         }
 
-        if (!data.trips || data.trips.length === 0) {
-          results.innerHTML = "<p>🚛 لا توجد بيانات للشاحنات.</p>";
-          return;
-        }
+        let withSonar = 0, withoutSonar = 0;
+        trips.forEach(trip => {
+          const hasSonar = trip.sonarData?.manifests?.length > 0;
+          const sonarDate = hasSonar ? formatDate(trip.sonarData.manifests[0].sonarPictureDayTime) : "N/A";
 
-        data.trips.forEach(trip => {
-          const card = document.createElement("div");
-          card.className = "card";
+          const card = document.createElement('div');
+          card.className = 'bg-gradient-to-br from-white via-gray-100 to-slate-200 rounded-2xl p-5 mb-4 shadow-md';
           card.innerHTML = `
-            <p><b>🚛 رقم السيارة:</b> ${trip.truck_number || "غير متوفر"}</p>
-            <p><b>👨‍✈️ اسم السائق:</b> ${trip.driver_name || "غير متوفر"}</p>
-            <p><b>📦 رقم الحاوية:</b> ${trip.container_number_export || "غير متوفر"}</p>
-            <p><b>📄 رقم المنافيست:</b> ${trip.manifest || "غير متوفر"}</p>
+            <div class="text-${hasSonar ? 'green' : 'red'}-600 font-bold text-lg mb-2">
+              ${hasSonar ? '✅ With Sonar' : '🚫 Without Sonar'}
+            </div>
+            <p><strong>🚛 Truck Number:</strong> ${trip.truck_number || 'N/A'}</p>
+            <p><strong>🧍 Driver:</strong> ${trip.driver_name || 'N/A'}</p>
+            <p><strong>📦 Container:</strong> ${trip.container_number || 'N/A'}</p>
+            <p><strong>📌 Berth:</strong> ${trip.berth || 'N/A'}</p>
+            <p><strong>👤 Agent:</strong> ${trip.transportation_agent || 'N/A'}</p>
+            <p><strong>📅 Sonar Date:</strong> ${sonarDate}</p>
           `;
-          results.appendChild(card);
+          if (hasSonar) { withSonarCol.appendChild(card); withSonar++; }
+          else { withoutSonarCol.appendChild(card); withoutSonar++; }
         });
 
+        stats.textContent = `📊 Total Results: ${trips.length} — ✅ ${withSonar} | 🚫 ${withoutSonar}`;
       } catch (error) {
-        radar.classList.remove("loading");
-        results.innerHTML = `<p style="color:red;">⚠️ حدث خطأ أثناء جلب البيانات.</p>`;
+        stats.textContent = "⚠️ Error: " + error.message;
+      } finally {
+        // Stop radar
+        radarSweep.style.display = "none";
       }
     }
   </script>
