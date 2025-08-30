@@ -1,52 +1,26 @@
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
-const btoa = require('btoa');
+export default async function handler(req, res) {
+  const { unique } = req.query;
 
-const app = express();
-const port = 3001; // You can choose any available port
-
-app.use(cors());
-
-app.get('/api/trucks/:unique', async (req, res) => {
-  const uniqueId = req.params.unique;
-
-  if (!uniqueId) {
-    return res.status(400).json({ error: 'يرجى إدخال الرقم الموحد' });
+  if (!unique) {
+    return res.status(400).json({ error: "يرجى إدخال الرقم الموحد." });
   }
 
-  const apiUrl = `http://176.241.95.201:8092/id?unique=${uniqueId}`;
-  const auth = 'admin:241067890';
-  const encodedAuth = btoa(auth);
-
   try {
-    console.log(`Request to: ${apiUrl}`);
-    let response;
-    try {
-      response = await axios.get(apiUrl, {
-        headers: {
-          Authorization: `Basic ${encodedAuth}`,
-        },
-      });
+    const response = await fetch(`http://176.241.95.201:8092/id?unique=${encodeURIComponent(unique)}`, {
+      method: "GET",
+      headers: {
+        Authorization: "Basic YWRtaW46MjQxMDY3ODkw",
+      },
+    });
 
-      console.log(`Response status: ${response.status}`);
-      console.log(`Response data: ${JSON.stringify(response.data)}`);
-
-      let data = response.data;
-
-      if (data.sonar_image_url) {
-        delete data.sonar_image_url;
-      }
-
-      res.json(data);
-    } catch (error) {
-      console.error('API Error:', error);
-      console.error('Error details:', error.message);
-    console.error('Full error object:', error);
-    res.status(500).json({ error: 'حدث خطأ بالاتصال', details: error.message });
+    if (!response.ok) {
+      return res.status(response.status).json({ error: "فشل في جلب البيانات من الـ API." });
     }
-});
 
-app.listen(port, () => {
-  console.log(`Proxy server is running on port ${port}`);
-});
+    const data = await response.json();
+    res.status(200).json(data);
+
+  } catch (error) {
+    res.status(500).json({ error: "حدث خطأ داخلي.", details: error.message });
+  }
+}
